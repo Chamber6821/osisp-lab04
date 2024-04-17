@@ -1,0 +1,13 @@
+BasedOnStyle: LLVM
+SeparateDefinitionBlocks: Always
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+AlwaysBreakTemplateDeclarations: Yes
+AllowShortIfStatementsOnASingleLine: Always
+AlignConsecutiveMacros: AcrossEmptyLines
+AllowAllArgumentsOnNextLine: false
+AllowShortCaseLabelsOnASingleLine: true
+AlignAfterOpenBracket: BlockIndent
+BinPackArguments: false
+BreakStringLiterals: false
