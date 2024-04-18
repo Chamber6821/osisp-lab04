@@ -131,6 +131,14 @@ uint16_t _xor(int length, char bytes[]) {
   return acc;
 }
 
+uint16_t Message_hash(struct Message *this) {
+  uint16_t old = this->hash;
+  this->hash = 0;
+  uint16_t calculated = _xor(Message_size(this), (char *)this);
+  this->hash = old;
+  return calculated;
+}
+
 struct Message *newRandomMessage() {
   uint8_t size = rand();
   struct Message *message = malloc(sizeof(struct Message) + size);
@@ -157,9 +165,8 @@ void producer(struct Ring *buffer) {
     struct Message *message = newRandomMessage();
     Ring_send(buffer, Message_size(message), (char *)message);
     printf(
-        "Producer %5d Sent message with type %02hX and hash %04hX Buffer length %d\n",
+        "Producer %5d Sent message with hash %04hX Buffer length %d\n",
         getpid(),
-        message->type,
         message->hash,
         Ring_length(buffer)
     );
@@ -173,10 +180,10 @@ void consumer(struct Ring *buffer) {
   while (1) {
     struct Message *message = readMessage(buffer);
     printf(
-        "Consumer %5d Got message with type %02hX and hash %04hX Buffer length %d\n",
+        "Consumer %5d Got  message with hash %04hX Expected hash %04hX Buffer length %d\n",
         getpid(),
-        message->type,
         message->hash,
+        Message_hash(message),
         Ring_length(buffer)
     );
     free(message);
