@@ -1,4 +1,9 @@
+#define _GNU_SOURCE
+
+#include <alloca.h>
 #include <pthread.h>
+#include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,9 +22,9 @@ struct Ring {
 
 struct Ring *Ring_construct(struct Ring *this, int capacity) {
   *this = (struct Ring
-  ){.send = PTHREAD_MUTEX_INITIALIZER,
-    .read = PTHREAD_MUTEX_INITIALIZER,
-    .general = PTHREAD_MUTEX_INITIALIZER,
+  ){.send = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP,
+    .read = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP,
+    .general = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP,
     .capacity = capacity,
     .begin = 0,
     .end = 0};
@@ -79,7 +84,7 @@ int Ring_send(struct Ring *this, int length, char bytes[]) {
 int Ring_read(struct Ring *this, int length, char bytes[]) {
   pthread_mutex_lock(&this->read);
   int base = this->begin;
-  while (Ring_length(this) < length)
+  while (Ring_available(this) < length)
     ;
   for (int i = 0; i < length; i++) {
     bytes[i] = *Ring_byte(this, base + i);
@@ -107,27 +112,92 @@ void sfree(void *shared) {
   munmap(block, *((int *)block));
 }
 
-int main() {
-  char buffer[80];
-  struct Ring *ring = Ring_construct(malloc(sizeof(struct Ring) + 42), 42);
-  for (int i = 0; i < 10000; i++) {
-    sprintf(buffer, "%d", i);
-    Ring_send(ring, strlen(buffer) + 1, buffer);
-    printf(
-        "%s | cap:%2d beg:%2d end:%2d\n",
-        buffer,
-        ring->capacity,
-        ring->begin,
-        ring->end
-    );
-    Ring_read(ring, strlen(buffer) + 1, buffer);
-    printf(
-        "%s | cap:%2d beg:%2d end:%2d\n",
-        buffer,
-        ring->capacity,
-        ring->begin,
-        ring->end
-    );
+struct Message {
+  uint8_t type;
+  uint16_t hash;
+  uint8_t size;
+  char data[];
+};
+
+#define MESSAGE_MAX_SIZE (sizeof(struct Message) + 255)
+
+int Message_size(struct Message *this) { return sizeof(*this) + this->size; }
+
+uint16_t _xor(int length, char bytes[]) {
+  uint16_t acc = 0;
+  for (int i = 0; i < length; i++) {
+    acc ^= bytes[i];
   }
+  return acc;
+}
+
+struct Message *newRandomMessage() {
+  uint8_t size = rand();
+  struct Message *message = malloc(sizeof(struct Message) + size);
+  *message = (struct Message){.type = rand(), .hash = 0, .size = size};
+  for (int i = 0; i < size; i++) {
+    message->data[i] = rand();
+  }
+  message->hash = _xor(sizeof(struct Message) + size, (char *)message);
+  return message;
+}
+
+struct Message *readMessage(struct Ring *ring) {
+  struct Message *head = alloca(MESSAGE_MAX_SIZE);
+  pthread_mutex_lock(&ring->read);
+  Ring_read(ring, sizeof(struct Message), (char *)head);
+  Ring_read(ring, head->size, head->data);
+  pthread_mutex_unlock(&ring->read);
+  return memcpy(malloc(Message_size(head)), head, Message_size(head));
+}
+
+void producer(struct Ring *buffer) {
+  printf("Producer %5d Started\n", getpid());
+  while (1) {
+    struct Message *message = newRandomMessage();
+    Ring_send(buffer, Message_size(message), (char *)message);
+    printf(
+        "Producer %5d Sent message with type %02hX and hash %04hX Buffer length %d\n",
+        getpid(),
+        message->type,
+        message->hash,
+        Ring_length(buffer)
+    );
+    free(message);
+    sleep(1);
+  }
+}
+
+void consumer(struct Ring *buffer) {
+  printf("Consumer %5d Started\n", getpid());
+  while (1) {
+    struct Message *message = readMessage(buffer);
+    printf(
+        "Consumer %5d Got message with type %02hX and hash %04hX\n",
+        getpid(),
+        message->type,
+        message->hash
+    );
+    free(message);
+    sleep(1);
+  }
+}
+
+int run(void (*worker)(struct Ring *buffer), struct Ring *buffer) {
+  int pid = fork();
+  if (pid) return pid;
+  worker(buffer);
+  exit(0);
+}
+
+int main() {
+  int ringCapacity = 1024;
+  struct Ring *ring =
+      Ring_construct(malloc(sizeof(struct Ring) + ringCapacity), ringCapacity);
+  int pp = run(producer, ring);
+  int cp = run(consumer, ring);
+  sleep(10);
+  kill(cp, SIGKILL);
+  kill(pp, SIGKILL);
   Ring_desctruct(ring);
 }
