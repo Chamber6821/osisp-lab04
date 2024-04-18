@@ -173,10 +173,11 @@ void consumer(struct Ring *buffer) {
   while (1) {
     struct Message *message = readMessage(buffer);
     printf(
-        "Consumer %5d Got message with type %02hX and hash %04hX\n",
+        "Consumer %5d Got message with type %02hX and hash %04hX Buffer length %d\n",
         getpid(),
         message->type,
-        message->hash
+        message->hash,
+        Ring_length(buffer)
     );
     free(message);
     sleep(1);
@@ -193,11 +194,12 @@ int run(void (*worker)(struct Ring *buffer), struct Ring *buffer) {
 int main() {
   int ringCapacity = 1024;
   struct Ring *ring =
-      Ring_construct(malloc(sizeof(struct Ring) + ringCapacity), ringCapacity);
+      Ring_construct(smalloc(sizeof(struct Ring) + ringCapacity), ringCapacity);
   int pp = run(producer, ring);
   int cp = run(consumer, ring);
   sleep(10);
   kill(cp, SIGKILL);
   kill(pp, SIGKILL);
   Ring_desctruct(ring);
+  sfree(ring);
 }
