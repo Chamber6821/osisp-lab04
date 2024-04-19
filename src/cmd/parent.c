@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <termios.h>
 #include <unistd.h>
 
 struct Ring {
@@ -198,15 +199,55 @@ int run(void (*worker)(struct Ring *buffer), struct Ring *buffer) {
   exit(0);
 }
 
+int getch() {
+  struct termios old, current;
+  tcgetattr(STDIN_FILENO, &current);
+  old = current;
+  current.c_lflag &= ~(ECHO | ICANON);
+  tcsetattr(STDIN_FILENO, TCSANOW, &current);
+  int ch = getchar();
+  tcsetattr(STDIN_FILENO, TCSANOW, &old);
+  return ch;
+}
+
+int producerCount = 0;
+int *producers = NULL;
+
+int consumerCount = 0;
+int *consumers = NULL;
+
+int showInfo() { return 0; }
+
+int addProducer() { return 0; }
+
+int killProducer() { return 0; }
+
+int addConsumer() { return 0; }
+
+int killConsumer() { return 0; }
+
+int handleKey(char key) {
+  switch (key) {
+  case 'i': return showInfo();
+  case 'p': return addProducer();
+  case 'P': return killProducer();
+  case 'c': return addConsumer();
+  case 'C': return killConsumer();
+  case 'q': return -1;
+  default: return 0;
+  }
+}
+
 int main() {
   int ringCapacity = 1024;
   struct Ring *ring =
       Ring_construct(smalloc(sizeof(struct Ring) + ringCapacity), ringCapacity);
-  int pp = run(producer, ring);
-  int cp = run(consumer, ring);
-  sleep(10);
-  kill(cp, SIGKILL);
-  kill(pp, SIGKILL);
+  while (handleKey(getch()) == 0)
+    ;
+  for (int i = 0; i < producerCount; i++)
+    killProducer();
+  for (int i = 0; i < consumerCount; i++)
+    killConsumer();
   Ring_desctruct(ring);
   sfree(ring);
 }
