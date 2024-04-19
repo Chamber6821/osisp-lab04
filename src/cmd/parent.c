@@ -216,25 +216,52 @@ int *producers = NULL;
 int consumerCount = 0;
 int *consumers = NULL;
 
-int showInfo() { return 0; }
+typedef int (*handle_f)(struct Ring *ring);
 
-int addProducer() { return 0; }
+int showInfo(struct Ring *ring) {
+  (void)ring;
+  return 0;
+}
 
-int killProducer() { return 0; }
+int addProducer(struct Ring *ring) {
+  (void)ring;
+  return 0;
+}
 
-int addConsumer() { return 0; }
+int killProducer(struct Ring *ring) {
+  (void)ring;
+  return 0;
+}
 
-int killConsumer() { return 0; }
+int addConsumer(struct Ring *ring) {
+  (void)ring;
+  return 0;
+}
 
-int handleKey(char key) {
+int killConsumer(struct Ring *ring) {
+  (void)ring;
+  return 0;
+}
+
+int quit(struct Ring *ring) {
+  (void)ring;
+  return 0;
+}
+
+int unknownCommand(struct Ring *ring) {
+  (void)ring;
+  return 0;
+}
+
+handle_f handleFor(char key) {
   switch (key) {
-  case 'i': return showInfo();
-  case 'p': return addProducer();
-  case 'P': return killProducer();
-  case 'c': return addConsumer();
-  case 'C': return killConsumer();
-  case 'q': return -1;
-  default: return 0;
+  case 'i': return showInfo;
+  case 'p': return addProducer;
+  case 'P': return killProducer;
+  case 'c': return addConsumer;
+  case 'C': return killConsumer;
+  case 'q': return quit;
+  default: return unknownCommand;
   }
 }
 
@@ -242,12 +269,12 @@ int main() {
   int ringCapacity = 1024;
   struct Ring *ring =
       Ring_construct(smalloc(sizeof(struct Ring) + ringCapacity), ringCapacity);
-  while (handleKey(getch()) == 0)
+  while (handleFor(getch())(ring) == 0)
     ;
   for (int i = 0; i < producerCount; i++)
-    killProducer();
+    killProducer(ring);
   for (int i = 0; i < consumerCount; i++)
-    killConsumer();
+    killConsumer(ring);
   Ring_desctruct(ring);
   sfree(ring);
 }
