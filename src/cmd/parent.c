@@ -244,12 +244,20 @@ int killProducer(struct Ring *ring) {
 }
 
 int addConsumer(struct Ring *ring) {
-  (void)ring;
+  pid_t pid = run(consumer, ring);
+  consumerCount++;
+  consumers = realloc(consumers, sizeof(*consumers) * consumerCount);
+  consumers[consumerCount - 1] = pid;
   return 0;
 }
 
 int killConsumer(struct Ring *ring) {
   (void)ring;
+  if (consumerCount == 0) return 0;
+  consumerCount--;
+  printf("Kill consumer %5d\n", consumers[consumerCount]);
+  kill(consumers[consumerCount], SIGKILL);
+  waitpid(consumers[consumerCount], NULL, 0);
   return 0;
 }
 
