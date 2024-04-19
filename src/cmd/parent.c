@@ -245,7 +245,7 @@ int killConsumer(struct Ring *ring) {
 
 int quit(struct Ring *ring) {
   (void)ring;
-  return 0;
+  return -1;
 }
 
 int unknownCommand(struct Ring *ring) {
