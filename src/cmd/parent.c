@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -192,8 +193,8 @@ void consumer(struct Ring *buffer) {
   }
 }
 
-int run(void (*worker)(struct Ring *buffer), struct Ring *buffer) {
-  int pid = fork();
+pid_t run(void (*worker)(struct Ring *buffer), struct Ring *buffer) {
+  pid_t pid = fork();
   if (pid) return pid;
   worker(buffer);
   exit(0);
@@ -211,25 +212,34 @@ int getch() {
 }
 
 int producerCount = 0;
-int *producers = NULL;
+pid_t *producers = NULL;
 
 int consumerCount = 0;
-int *consumers = NULL;
+pid_t *consumers = NULL;
 
 typedef int (*handle_f)(struct Ring *ring);
 
 int showInfo(struct Ring *ring) {
   (void)ring;
+  printf("Producers %d Consumers %d\n", producerCount, consumerCount);
   return 0;
 }
 
 int addProducer(struct Ring *ring) {
-  (void)ring;
+  pid_t pid = run(producer, ring);
+  producerCount++;
+  producers = realloc(producers, sizeof(*producers) * producerCount);
+  producers[producerCount - 1] = pid;
   return 0;
 }
 
 int killProducer(struct Ring *ring) {
   (void)ring;
+  if (producerCount == 0) return 0;
+  producerCount--;
+  printf("Kill producer %5d\n", producers[producerCount]);
+  kill(producers[producerCount], SIGKILL);
+  waitpid(producers[producerCount], NULL, 0);
   return 0;
 }
 
@@ -271,9 +281,9 @@ int main() {
       Ring_construct(smalloc(sizeof(struct Ring) + ringCapacity), ringCapacity);
   while (handleFor(getch())(ring) == 0)
     ;
-  for (int i = 0; i < producerCount; i++)
+  while (producerCount)
     killProducer(ring);
-  for (int i = 0; i < consumerCount; i++)
+  while (consumerCount)
     killConsumer(ring);
   Ring_desctruct(ring);
   sfree(ring);
