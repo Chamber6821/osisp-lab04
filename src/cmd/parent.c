@@ -147,7 +147,7 @@ struct Message *newRandomMessage() {
   for (int i = 0; i < size; i++) {
     message->data[i] = rand();
   }
-  message->hash = _xor(sizeof(struct Message) + size, (char *)message);
+  message->hash = Message_hash(message);
   return message;
 }
 
