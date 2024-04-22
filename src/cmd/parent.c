@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <alloca.h>
+#include <errno.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
@@ -11,6 +12,10 @@
 #include <sys/wait.h>
 #include <termios.h>
 #include <unistd.h>
+
+volatile int running = 0;
+
+void stop() { running = 0; }
 
 struct Ring {
   pthread_mutex_t send;
@@ -78,10 +83,12 @@ int Ring_send(struct Ring *this, int length, char bytes[]) {
   if (length >= this->capacity) return -1;
   pthread_mutex_lock(&this->send);
   int base = this->end;
-  while (Ring_alloc(this, length) == -1)
+  while (Ring_alloc(this, length) == -1 && running)
     ;
-  for (int i = 0; i < length; i++) {
-    *Ring_byte(this, base + i) = bytes[i];
+  if (running) {
+    for (int i = 0; i < length; i++) {
+      *Ring_byte(this, base + i) = bytes[i];
+    }
   }
   pthread_mutex_unlock(&this->send);
   return 0;
@@ -90,12 +97,14 @@ int Ring_send(struct Ring *this, int length, char bytes[]) {
 int Ring_read(struct Ring *this, int length, char bytes[]) {
   pthread_mutex_lock(&this->read);
   int base = this->begin;
-  while (Ring_length(this) < length)
+  while (Ring_length(this) < length && running)
     ;
-  for (int i = 0; i < length; i++) {
-    bytes[i] = *Ring_byte(this, base + i);
+  if (running) {
+    for (int i = 0; i < length; i++) {
+      bytes[i] = *Ring_byte(this, base + i);
+    }
+    Ring_free(this, length);
   }
-  Ring_free(this, length);
   pthread_mutex_unlock(&this->read);
   return 0;
 }
@@ -187,7 +196,7 @@ void sendMessage(struct Ring *ring, struct Message *message) {
 
 void producer(struct Ring *buffer) {
   printf("Producer %6d Started\n", getpid());
-  while (1) {
+  while (running) {
     struct Message *message = newRandomMessage();
     char data[255 * 3] = {0};
     bytes2hex(data, message->size, message->data);
@@ -206,7 +215,7 @@ void producer(struct Ring *buffer) {
 
 void consumer(struct Ring *buffer) {
   printf("Consumer %6d Started\n", getpid());
-  while (1) {
+  while (running) {
     struct Message *message = readMessage(buffer);
     char data[255 * 3] = {0};
     bytes2hex(data, message->size, message->data);
@@ -226,6 +235,8 @@ void consumer(struct Ring *buffer) {
 pid_t run(void (*worker)(struct Ring *buffer), struct Ring *buffer) {
   pid_t pid = fork();
   if (pid) return pid;
+  running = 1;
+  signal(SIGUSR1, stop);
   worker(buffer);
   exit(0);
 }
@@ -274,7 +285,7 @@ int killProducer(struct Ring *ring) {
   if (producerCount == 0) return 0;
   producerCount--;
   printf("Kill producer %6d\n", producers[producerCount]);
-  kill(producers[producerCount], SIGKILL);
+  kill(producers[producerCount], SIGUSR1);
   waitpid(producers[producerCount], NULL, 0);
   return 0;
 }
@@ -292,7 +303,7 @@ int killConsumer(struct Ring *ring) {
   if (consumerCount == 0) return 0;
   consumerCount--;
   printf("Kill consumer %6d\n", consumers[consumerCount]);
-  kill(consumers[consumerCount], SIGKILL);
+  kill(consumers[consumerCount], SIGUSR1);
   waitpid(consumers[consumerCount], NULL, 0);
   return 0;
 }
