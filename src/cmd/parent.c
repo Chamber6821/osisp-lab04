@@ -117,8 +117,8 @@ void sfree(void *shared) {
 
 struct Message {
   uint8_t type;
-  uint16_t hash;
   uint8_t size;
+  uint16_t hash;
   char data[];
 };
 
