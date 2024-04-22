@@ -182,7 +182,7 @@ void sendMessage(struct Ring *ring, struct Message *message) {
   pthread_mutex_lock(&ring->send);
   Ring_send(ring, Message_size(message), (char *)message);
   ring->sendCount++;
-  pthread_mutex_lock(&ring->send);
+  pthread_mutex_unlock(&ring->send);
 }
 
 void producer(struct Ring *buffer) {
