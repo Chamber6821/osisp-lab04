@@ -87,7 +87,7 @@ int Ring_send(struct Ring *this, int length, char bytes[]) {
 int Ring_read(struct Ring *this, int length, char bytes[]) {
   pthread_mutex_lock(&this->read);
   int base = this->begin;
-  while (Ring_available(this) < length)
+  while (Ring_length(this) < length)
     ;
   for (int i = 0; i < length; i++) {
     bytes[i] = *Ring_byte(this, base + i);
