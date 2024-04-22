@@ -16,6 +16,8 @@ struct Ring {
   pthread_mutex_t send;
   pthread_mutex_t read;
   pthread_mutex_t general;
+  int sendCount;
+  int readCount;
   int capacity;
   int begin;
   int end;
@@ -23,7 +25,8 @@ struct Ring {
 };
 
 struct Ring *Ring_construct(struct Ring *this, int capacity) {
-  *this = (struct Ring){.capacity = capacity, .begin = 0, .end = 0};
+  *this = (struct Ring
+  ){.sendCount = 0, .readCount = 0, .capacity = capacity, .begin = 0, .end = 0};
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
   pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
@@ -170,8 +173,16 @@ struct Message *readMessage(struct Ring *ring) {
   pthread_mutex_lock(&ring->read);
   Ring_read(ring, sizeof(struct Message), (char *)head);
   Ring_read(ring, head->size, head->data);
+  ring->readCount++;
   pthread_mutex_unlock(&ring->read);
   return memcpy(malloc(Message_size(head)), head, Message_size(head));
+}
+
+void sendMessage(struct Ring *ring, struct Message *message) {
+  pthread_mutex_lock(&ring->send);
+  Ring_send(ring, Message_size(message), (char *)message);
+  ring->sendCount++;
+  pthread_mutex_lock(&ring->send);
 }
 
 void producer(struct Ring *buffer) {
@@ -180,7 +191,7 @@ void producer(struct Ring *buffer) {
     struct Message *message = newRandomMessage();
     char data[255 * 3] = {0};
     bytes2hex(data, message->size, message->data);
-    Ring_send(buffer, Message_size(message), (char *)message);
+    sendMessage(buffer, message);
     printf(
         "Producer %6d Sent %04hX:%04hX       %.80s\n",
         getpid(),
@@ -240,7 +251,13 @@ typedef int (*handle_f)(struct Ring *ring);
 
 int showInfo(struct Ring *ring) {
   (void)ring;
-  printf("Producers %d Consumers %d\n", producerCount, consumerCount);
+  printf(
+      "Sent %d(%d) Got %d(%d)\n",
+      ring->sendCount,
+      producerCount,
+      ring->readCount,
+      consumerCount
+  );
   return 0;
 }
 
