@@ -23,13 +23,14 @@ struct Ring {
 };
 
 struct Ring *Ring_construct(struct Ring *this, int capacity) {
-  *this = (struct Ring
-  ){.send = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP,
-    .read = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP,
-    .general = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP,
-    .capacity = capacity,
-    .begin = 0,
-    .end = 0};
+  *this = (struct Ring){.capacity = capacity, .begin = 0, .end = 0};
+  pthread_mutexattr_t attr;
+  pthread_mutexattr_init(&attr);
+  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+  pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+  pthread_mutex_init(&this->send, &attr);
+  pthread_mutex_init(&this->read, &attr);
+  pthread_mutex_init(&this->general, &attr);
   return this;
 }
 
