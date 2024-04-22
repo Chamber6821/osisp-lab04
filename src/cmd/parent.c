@@ -153,6 +153,18 @@ struct Message *newRandomMessage() {
   return message;
 }
 
+void bytes2hex(char *string, int length, char bytes[]) {
+  char *it = string;
+  if (length) {
+    sprintf(it, "%02hhX", bytes[0]);
+    it += 2;
+  }
+  for (int i = 1; i < length; i++) {
+    sprintf(it, ":%02hhX", bytes[i]);
+    it += 3;
+  }
+}
+
 struct Message *readMessage(struct Ring *ring) {
   struct Message *head = alloca(MESSAGE_MAX_SIZE);
   pthread_mutex_lock(&ring->read);
@@ -163,15 +175,18 @@ struct Message *readMessage(struct Ring *ring) {
 }
 
 void producer(struct Ring *buffer) {
-  printf("Producer %5d Started\n", getpid());
+  printf("Producer %6d Started\n", getpid());
   while (1) {
     struct Message *message = newRandomMessage();
+    char data[255 * 3] = {0};
+    bytes2hex(data, message->size, message->data);
     Ring_send(buffer, Message_size(message), (char *)message);
     printf(
-        "Producer %5d Sent message with hash %04hX Buffer length %d\n",
+        "Producer %6d Sent %04hX:%04hX       %.80s\n",
         getpid(),
+        message->type,
         message->hash,
-        Ring_length(buffer)
+        data
     );
     free(message);
     sleep(1);
@@ -179,15 +194,18 @@ void producer(struct Ring *buffer) {
 }
 
 void consumer(struct Ring *buffer) {
-  printf("Consumer %5d Started\n", getpid());
+  printf("Consumer %6d Started\n", getpid());
   while (1) {
     struct Message *message = readMessage(buffer);
+    char data[255 * 3] = {0};
+    bytes2hex(data, message->size, message->data);
     printf(
-        "Consumer %5d Got  message with hash %04hX Expected hash %04hX Buffer length %d\n",
+        "Consumer %6d Got  %04hX:%04hX(%04hX) %.80s\n",
         getpid(),
+        message->type,
         message->hash,
         Message_hash(message),
-        Ring_length(buffer)
+        data
     );
     free(message);
     sleep(1);
