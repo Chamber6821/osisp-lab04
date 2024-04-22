@@ -238,7 +238,7 @@ int killProducer(struct Ring *ring) {
   (void)ring;
   if (producerCount == 0) return 0;
   producerCount--;
-  printf("Kill producer %5d\n", producers[producerCount]);
+  printf("Kill producer %6d\n", producers[producerCount]);
   kill(producers[producerCount], SIGKILL);
   waitpid(producers[producerCount], NULL, 0);
   return 0;
@@ -256,7 +256,7 @@ int killConsumer(struct Ring *ring) {
   (void)ring;
   if (consumerCount == 0) return 0;
   consumerCount--;
-  printf("Kill consumer %5d\n", consumers[consumerCount]);
+  printf("Kill consumer %6d\n", consumers[consumerCount]);
   kill(consumers[consumerCount], SIGKILL);
   waitpid(consumers[consumerCount], NULL, 0);
   return 0;
