@@ -21,8 +21,6 @@ COMPILE_COMMANDS = $(BUILD_DIR)/compile_commands.json
 
 target = $(BUILD_DIR)/$(1)$(DEBUG_SUFFIX)
 executable = $(BUILD_DIR)/$(patsubst %.c,%,$(notdir $(1)))$(DEBUG_SUFFIX)
-object = $(BUILD_DIR)/$(patsubst %.c,%,$(1))$(DEBUG_SUFFIX).o
-dependencies = $(CC) -MM $(1) -MT $(2)
 
 .PHONY: all
 all: app
@@ -48,16 +46,9 @@ bear:
 .PHONY: app
 app: $(EXECUTABLES)
 
-$(foreach source,$(SOURCES),$(eval $(shell $(call dependencies,$(source),$(call object,$(source))))))
-$(foreach main,$(MAINS),$(eval $(shell $(call dependencies,$(main),$(call executable,$(main))))))
-
-$(EXECUTABLES): $(call executable,%): src/cmd/%.c $(OBJECTS)
+$(EXECUTABLES): $(call executable,%): src/cmd/%.c $(SOURCES)
 	mkdir -p $(dir $@)
-	$(CC) $< $(OBJECTS) -o $@
-
-$(OBJECTS): $(call object,%.c): %.c
-	mkdir -p $(dir $@)
-	$(CC) -c $< -o $@
+	$(CC) $< $(SOURCES) -o $@
 
 $(GDB_COMMANDS):
 	mkdir -p $(dir $@)
