@@ -17,6 +17,7 @@ SOURCES = $(call rwildcard,src/main,*.c)
 OBJECTS = $(foreach source,$(SOURCES),$(call object,$(source)))
 MAINS = $(wildcard src/cmd/*.c)
 EXECUTABLES = $(foreach main,$(MAINS),$(call executable,$(main)))
+COMPILE_COMMANDS = $(BUILD_DIR)/compile_commands.json
 
 target = $(BUILD_DIR)/$(1)$(DEBUG_SUFFIX)
 executable = $(BUILD_DIR)/$(patsubst %.c,%,$(notdir $(1)))$(DEBUG_SUFFIX)
@@ -37,6 +38,12 @@ vrun: $(EXECUTABLES)
 .PHONE: gdb
 gdb: $(EXECUTABLES) $(GDB_COMMANDS)
 	$(GDB) -x $(GDB_COMMANDS) -q $(call target,$(TARGET))
+
+.PHONE: bear
+bear:
+	make clean
+	mkdir -p $(dir $(COMPILE_COMMANDS))
+	bear --output $(COMPILE_COMMANDS) -- make app
 
 .PHONY: app
 app: $(EXECUTABLES)
