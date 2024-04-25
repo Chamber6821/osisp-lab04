@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 
+#include "io.h"
 #include "message.h"
 #include "ring.h"
 #include "shared.h"
@@ -17,13 +18,11 @@
 
 struct Shared *shared;
 
-volatile int running = 0;
+volatile int running = 1;
 
 void stop() { running = 0; }
 
 struct Shared {
-  pthread_mutex_t send;
-  pthread_mutex_t read;
   pthread_mutex_t general;
   int sendCount;
   int readCount;
@@ -34,10 +33,7 @@ void initShared(int ringCapacity) {
   shared = smalloc(sizeof(struct Shared) + sizeof(struct Ring) + ringCapacity);
   pthread_mutexattr_t attr;
   pthread_mutexattr_init(&attr);
-  pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
   pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
-  pthread_mutex_init(&shared->send, &attr);
-  pthread_mutex_init(&shared->read, &attr);
   pthread_mutex_init(&shared->general, &attr);
   shared->sendCount = 0;
   shared->readCount = 0;
@@ -48,27 +44,13 @@ void initShared(int ringCapacity) {
 void destroyShared() {
   Ring_desctruct(shared->ring);
   pthread_mutex_destroy(&shared->general);
-  pthread_mutex_destroy(&shared->read);
-  pthread_mutex_destroy(&shared->send);
   sfree(shared);
-}
-
-void bytes2hex(char *string, int length, char bytes[]) {
-  char *it = string;
-  if (length) {
-    sprintf(it, "%02hhX", bytes[0]);
-    it += 2;
-  }
-  for (int i = 1; i < length; i++) {
-    sprintf(it, ":%02hhX", bytes[i]);
-    it += 3;
-  }
 }
 
 void producer() {
   printf("Producer %6d Started\n", getpid());
   while (running) {
-    pthread_mutex_lock(&shared->send);
+    sleep(1);
     pthread_mutex_lock(&shared->general);
     char bytes[MESSAGE_MAX_SIZE] = {0};
     struct Message *message = Message_constructRandom((struct Message *)bytes);
@@ -89,15 +71,12 @@ void producer() {
       break;
     }
     pthread_mutex_unlock(&shared->general);
-    pthread_mutex_unlock(&shared->send);
-    sleep(1);
   }
 }
 
 void consumer() {
   printf("Consumer %6d Started\n", getpid());
   while (running) {
-    pthread_mutex_lock(&shared->read);
     pthread_mutex_lock(&shared->general);
     while (running) {
       pthread_mutex_unlock(&shared->general);
@@ -120,7 +99,6 @@ void consumer() {
       break;
     }
     pthread_mutex_unlock(&shared->general);
-    pthread_mutex_unlock(&shared->read);
     sleep(1);
   }
 }
@@ -128,21 +106,9 @@ void consumer() {
 pid_t run(void (*worker)()) {
   pid_t pid = fork();
   if (pid) return pid;
-  running = 1;
   signal(SIGUSR1, stop);
   worker();
   exit(0);
-}
-
-int getch() {
-  struct termios old, current;
-  tcgetattr(STDIN_FILENO, &current);
-  old = current;
-  current.c_lflag &= ~(ECHO | ICANON);
-  tcsetattr(STDIN_FILENO, TCSANOW, &current);
-  int ch = getchar();
-  tcsetattr(STDIN_FILENO, TCSANOW, &old);
-  return ch;
 }
 
 int producerCount = 0;
