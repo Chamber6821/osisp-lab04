@@ -7,7 +7,7 @@ TARGET ?= parent
 BUILD_DIR = build
 
 DEBUG_SUFFIX = $(if $(call eq,$(MODE),debug),-debug)
-CFLAGS = -W -Wall -Wextra -Werror -pedantic -std=c11 -Isrc/main/ $(if $(call eq,$(MODE),debug),-ggdb)
+CFLAGS = -W -Wall -Wextra -Werror -pedantic -Wno-strict-prototypes -std=c11 -Isrc/main/ $(if $(call eq,$(MODE),debug),-ggdb)
 CC = gcc $(CFLAGS)
 VALGRIND = valgrind --leak-check=full --show-leak-kinds=all
 GDB = gdb
